@@ -20,4 +20,6 @@ declare global {
       systemShutdown: () => Promise<string>;
     };
   }
+
+  declare const WEB_VITE_DEV_SERVER_URL: string;
 }

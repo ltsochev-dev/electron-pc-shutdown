@@ -3,9 +3,9 @@ import path from "node:path";
 import started from "electron-squirrel-startup";
 import { ServerInfo } from "globals";
 import {
+  getIpAddress,
   getServer,
   getServerStartedAt,
-  HOST,
   PORT,
   startServer,
   stopServer,
@@ -23,6 +23,7 @@ const createWindow = () => {
     width: 1280,
     height: 720,
     show: false,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
     },
@@ -46,9 +47,9 @@ const createWindow = () => {
     mainWindow.show();
   });
 
-  ipcMain.handle("get-server-info", () => {
+  ipcMain.handle("get-server-info", async () => {
     return {
-      ipAddress: HOST ?? "192.168.0.100",
+      ipAddress: (await getIpAddress()) ?? "192.168.0.100",
       port: PORT,
       connections: 0,
       startedAt: getServerStartedAt(),
