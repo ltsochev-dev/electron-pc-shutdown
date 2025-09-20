@@ -16,6 +16,8 @@ declare global {
       serverInfo: () => Promise<ServerInfo>;
       notifyReactReady: () => void;
       exit: (code: number) => void;
+      openExternal: (url: string) => void;
+      systemShutdown: () => Promise<string>;
     };
   }
 }

@@ -1,15 +1,17 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, shell } from "electron";
 import path from "node:path";
-import os from "os";
 import started from "electron-squirrel-startup";
 import { ServerInfo } from "globals";
 import {
   getServer,
   getServerStartedAt,
+  HOST,
   PORT,
   startServer,
   stopServer,
 } from "./server";
+import { exec } from "node:child_process";
+import { systemShutdown } from "./lib/electron";
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -48,28 +50,8 @@ const createWindow = () => {
   });
 
   ipcMain.handle("get-server-info", () => {
-    const getIpAddress = () => {
-      const nets = os.networkInterfaces();
-
-      for (const name of Object.keys(nets)) {
-        for (const net of nets[name]) {
-          // Skip internal (127.0.0.1) and non-ipv4
-          if (net.family === "IPv4" && !net.internal) {
-            return net.address;
-          }
-        }
-      }
-
-      return null;
-    };
-
-    ipcMain.on("exit", (_, code: number) => {
-      console.log("Exiting with code %d from app", code);
-      process.exit(code);
-    });
-
     return {
-      ipAddress: getIpAddress() ?? "192.168.0.100",
+      ipAddress: HOST ?? "192.168.0.100",
       port: PORT,
       connections: 0,
       startedAt: getServerStartedAt(),
@@ -90,6 +72,17 @@ const createWindow = () => {
 
     return stopServer();
   });
+
+  ipcMain.on("exit", (_, code: number) => {
+    console.log("Exiting with code %d from app", code);
+    process.exit(code);
+  });
+
+  ipcMain.on("open-url", (_, url: string) => {
+    shell.openExternal(url);
+  });
+
+  ipcMain.handle("system:shutdown", () => systemShutdown());
 };
 
 // This method will be called when Electron has finished

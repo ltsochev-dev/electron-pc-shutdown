@@ -141,6 +141,10 @@ function App() {
     }
   };
 
+  const handleOpenMobileWeb = () => {
+    window.electron.openExternal(`http://${serverAddress}`);
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-6xl mx-auto">
@@ -212,7 +216,13 @@ function App() {
                     ) : (
                       <>
                         <code className="text-sm font-mono flex-1">
-                          {serverAddress}
+                          <Button
+                            type="button"
+                            variant="link"
+                            onClick={handleOpenMobileWeb}
+                          >
+                            {serverAddress}
+                          </Button>
                         </code>
                         <Tooltip>
                           <TooltipTrigger asChild>

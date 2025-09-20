@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld("electron", {
   serverStart: () => ipcRenderer.invoke("server:start"),
   serverStop: () => ipcRenderer.invoke("server:stop"),
   serverInfo: () => ipcRenderer.invoke("get-server-info"),
+  systemShutdown: () => ipcRenderer.invoke("system:shutdown"),
   notifyReactReady: () => ipcRenderer.send("react-ready"),
+  openExternal: (url: string) => ipcRenderer.send("open-url", url),
   exit: (code: number) => ipcRenderer.send("exit", code),
 });

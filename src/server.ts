@@ -1,49 +1,68 @@
 import http from "node:http";
 import fs from "fs";
 import path from "path";
+import { createProxyServer } from "http-proxy";
+import os from "os";
+import { systemShutdown } from "./lib/electron";
 
 let server: http.Server | null = null;
 let startedAt = 0;
 
+const getIpAddress = () => {
+  const nets = os.networkInterfaces();
+
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      // Skip internal (127.0.0.1) and non-ipv4
+      if (net.family === "IPv4" && !net.internal) {
+        return net.address;
+      }
+    }
+  }
+
+  return null;
+};
+
 export const PORT = 1339;
-// In production, serve from the bundled dist folder
-// In development, serve from the source web folder
-const isProduction = process.env.NODE_ENV === "production";
-const webPath = isProduction
-  ? path.join(__dirname, "../dist/web")
-  : path.join(__dirname, "web");
+export const HOST = getIpAddress();
+
+const isDev = process.env.NODE_ENV !== "production";
+const staticDir = path.join(__dirname, ".vite/build/web");
+const proxy = createProxyServer({
+  target: WEB_VITE_DEV_SERVER_URL,
+  changeOrigin: true,
+});
 
 const startServer = () => {
   server = http.createServer((req, res) => {
-    // In development, serve from the source web folder
-    // In production, serve from the built dist folder
-    const filePath = isProduction
-      ? path.join(webPath, "index.html")
-      : path.join(__dirname, "web", "index.html");
+    if (req.method === "POST" && req.url === "/api/shutdown") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "ok", shuttingDown: true }));
 
-    try {
-      const content = fs.readFileSync(filePath);
-      const mimeType = "text/html";
+      return systemShutdown();
+    }
 
-      res.writeHead(200, {
-        "Content-Type": mimeType,
-        "Cache-Control": isProduction ? "public, max-age=31536000" : "no-cache",
+    if (isDev) {
+      proxy.web(req, res, (err) => {
+        console.error("Proxy error:", err);
+        res.writeHead(502);
+        res.end("Bad gateway");
       });
+    } else {
+      let filePath = path.join(staticDir, req.url || "index.html");
+      if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+        filePath = path.join(staticDir, "index.html");
+      }
+      const content = fs.readFileSync(filePath);
+      res.writeHead(200);
       res.end(content);
-    } catch (error) {
-      console.error("Error serving file:", error);
-      console.error("Attempted to serve from:", filePath);
-      res.writeHead(500);
-      res.end("Internal Server Error");
     }
   });
 
-  server.listen(PORT, () => {
+  server.listen(PORT, HOST, () => {
     startedAt = Date.now();
-    console.log(`SPA Server running on http://localhost:${PORT}`);
-    console.log(
-      `Serving from: ${isProduction ? webPath : path.join(__dirname, "web")}`
-    );
+    console.log(`SPA Server running on http://${HOST}:${PORT}`);
+    console.log(`Serving from: ${isDev ? WEB_VITE_DEV_SERVER_URL : staticDir}`);
   });
 
   return true;
