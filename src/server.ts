@@ -4,6 +4,8 @@ import path from "path";
 import { createProxyServer } from "http-proxy";
 import os from "os";
 import { systemShutdown } from "./lib/electron";
+import { app } from "electron";
+import mime from "mime";
 
 let server: http.Server | null = null;
 let startedAt = 0;
@@ -26,12 +28,15 @@ const getIpAddress = () => {
 export const PORT = 1339;
 export const HOST = getIpAddress();
 
-const isDev = process.env.NODE_ENV !== "production";
-const staticDir = path.join(__dirname, ".vite/build/web");
-const proxy = createProxyServer({
-  target: WEB_VITE_DEV_SERVER_URL,
-  changeOrigin: true,
-});
+const isDev = app.isPackaged !== true;
+const staticDir = path.join(__dirname, "../renderer/web");
+
+const proxy =
+  isDev &&
+  createProxyServer({
+    target: WEB_VITE_DEV_SERVER_URL,
+    changeOrigin: true,
+  });
 
 const startServer = () => {
   server = http.createServer((req, res) => {
@@ -53,8 +58,10 @@ const startServer = () => {
       if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
         filePath = path.join(staticDir, "index.html");
       }
+      const ext = path.extname(filePath).toLowerCase();
+      const type = mime.getType(ext) || "application/octet-stream";
       const content = fs.readFileSync(filePath);
-      res.writeHead(200);
+      res.writeHead(200, { "content-type": type });
       res.end(content);
     }
   });

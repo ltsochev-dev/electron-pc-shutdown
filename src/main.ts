@@ -10,15 +10,12 @@ import {
   startServer,
   stopServer,
 } from "./server";
-import { exec } from "node:child_process";
 import { systemShutdown } from "./lib/electron";
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
   app.quit();
 }
-
-const isDev = process.env.NODE_ENV === "development";
 
 const createWindow = () => {
   // Create the browser window.
@@ -41,7 +38,7 @@ const createWindow = () => {
   }
 
   // Open the DevTools.
-  if (isDev) {
+  if (!app.isPackaged) {
     mainWindow.webContents.openDevTools();
   }
 
