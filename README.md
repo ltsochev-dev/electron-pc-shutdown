@@ -1,4 +1,4 @@
-# Remote App
+# Electron Remote PC Shutdown
 
 An Electron application with a bundled React SPA served by an HTTP server.
 
@@ -21,19 +21,6 @@ npm install
 ### Development Commands
 
 - **Start Electron app**: `npm start`
-- **Build web assets**: `npm run build:web`
-- **Dev server for web**: `npm run dev:web`
-- **Build everything**: `npm run build:all`
-
-### Web Development Workflow
-
-1. **Development**: Use `npm run dev:web` to start Vite dev server for hot reload
-2. **Production**: Use `npm run build:web` to bundle assets to `dist/web/`
-
-The HTTP server automatically serves:
-
-- **Development**: Raw files from `src/web/`
-- **Production**: Bundled files from `dist/web/`
 
 ## How It Works
 
@@ -53,10 +40,6 @@ src/
 ├── server.ts              # HTTP server
 └── main.ts                # Electron main process
 
-dist/web/                  # Bundled web assets (generated)
-├── index.html
-└── assets/
-    └── main-[hash].js
 ```
 
 ## Features
