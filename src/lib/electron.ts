@@ -1,8 +1,6 @@
 import { exec } from "child_process";
 
 export function systemShutdown(): Promise<string> {
-  console.log("shuttin down the system");
-  return new Promise((resolve) => resolve("kekw"));
   return new Promise((resolve, reject) => {
     let cmd: string;
     switch (process.platform) {
