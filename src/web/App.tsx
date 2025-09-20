@@ -8,79 +8,44 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import {
-  ArrowLeft,
-  Clock,
-  Power,
-  RotateCcw,
-  Search,
-  Server,
-  Smartphone,
-  Wifi,
-  WifiOff,
-} from "lucide-react";
+import { Toaster } from "@/components/ui/sonner";
+import { useFormatTimeSince } from "@/hooks/useFormatTimeSince";
+import { Power, Search, Server, Smartphone, Wifi, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 type ConnectionState = "scanning" | "connecting" | "connected" | "disconnected";
-
-interface LastKnownServer {
-  address: string;
-  name: string;
-  lastConnected: string;
-}
 
 function FrontendApp() {
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("disconnected");
   const [scanProgress, setScanProgress] = useState(0);
-  const [lastKnownServer, setLastKnownServer] =
-    useState<LastKnownServer | null>(null);
   const [serverInfo, setServerInfo] = useState({
-    address: "192.168.1.100:3000",
-    name: "Local Server",
-    uptime: "2h 15m",
-    status: "Running",
+    ipAddress: "192.168.0.100",
+    port: 3000,
+    connections: 0,
+    startedAt: 0,
+    isRunning: false,
   });
+  const uptimeStr = useFormatTimeSince(serverInfo.startedAt);
 
   useEffect(() => {
-    const stored = localStorage.getItem("lastKnownServer");
-    if (stored) {
-      try {
-        setLastKnownServer(JSON.parse(stored));
-      } catch (error) {
-        console.error("Failed to parse last known server:", error);
+    const abortController = new AbortController();
+
+    const fetchServerInfo = async () => {
+      const res = await fetch("/api/info", { signal: abortController.signal });
+      if (!res.ok) {
+        toast.error("Something went wrong fetching info about the server.");
       }
-    }
-  }, []);
 
-  const saveLastKnownServer = (server: { address: string; name: string }) => {
-    const lastKnown: LastKnownServer = {
-      address: server.address,
-      name: server.name,
-      lastConnected: new Date().toLocaleString(),
+      const { data } = await res.json();
+      setServerInfo(data);
     };
-    setLastKnownServer(lastKnown);
-    localStorage.setItem("lastKnownServer", JSON.stringify(lastKnown));
-  };
 
-  const handleConnectToLastKnown = () => {
-    if (!lastKnownServer) return;
+    fetchServerInfo();
 
-    setConnectionState("connecting");
-
-    setTimeout(() => {
-      setConnectionState("connected");
-      setServerInfo((prev) => ({
-        ...prev,
-        address: lastKnownServer.address,
-        name: lastKnownServer.name,
-      }));
-      saveLastKnownServer({
-        address: lastKnownServer.address,
-        name: lastKnownServer.name,
-      });
-    }, 1500);
-  };
+    return () => abortController.abort("useEffect unmount");
+  }, []);
 
   const handleScan = () => {
     setConnectionState("scanning");
@@ -94,10 +59,6 @@ function FrontendApp() {
 
           setTimeout(() => {
             setConnectionState("connected");
-            saveLastKnownServer({
-              address: serverInfo.address,
-              name: serverInfo.name,
-            });
           }, 1500);
 
           return 100;
@@ -114,10 +75,6 @@ function FrontendApp() {
 
   const handleShutdown = async () => {
     setServerInfo((prev) => ({ ...prev, status: "Shutting down..." }));
-    setTimeout(() => {
-      setConnectionState("disconnected");
-      setServerInfo((prev) => ({ ...prev, status: "Stopped", uptime: "0m" }));
-    }, 2000);
 
     try {
       const res = await fetch("/api/shutdown", {
@@ -136,7 +93,9 @@ function FrontendApp() {
       }
 
       const json = await res.json();
-      console.log({ json });
+      if ("status" in json && json.status === "ok") {
+        toast.success("Command send successfully");
+      }
     } catch (e) {
       console.error(e);
     }
@@ -187,45 +146,6 @@ function FrontendApp() {
         </div>
 
         <div className="space-y-6">
-          {connectionState === "disconnected" && lastKnownServer && (
-            <Card className="border-primary/20">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Clock className="h-4 w-4 text-primary" />
-                  Last Known Server
-                </CardTitle>
-                <CardDescription>
-                  Quickly reconnect to your previous server
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">
-                      {lastKnownServer.name}
-                    </span>
-                    <code className="text-xs font-mono bg-muted px-2 py-1 rounded">
-                      {lastKnownServer.address}
-                    </code>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3" />
-                    Last connected: {lastKnownServer.lastConnected}
-                  </div>
-                </div>
-                <Button
-                  onClick={handleConnectToLastKnown}
-                  className="w-full bg-transparent"
-                  variant="outline"
-                  disabled={connectionState !== "disconnected"}
-                >
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  Reconnect
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
           <Card>
             <CardHeader className="text-center pb-4">
               <div className="mx-auto mb-4 p-4 bg-muted rounded-full w-fit">
@@ -234,7 +154,7 @@ function FrontendApp() {
               <CardTitle className="text-lg">{getConnectionStatus()}</CardTitle>
               <CardDescription>
                 {connectionState === "connected"
-                  ? `Connected to ${serverInfo.address}`
+                  ? `Connected to ${serverInfo.ipAddress}`
                   : "Tap scan to find available servers"}
               </CardDescription>
             </CardHeader>
@@ -291,39 +211,35 @@ function FrontendApp() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Server Name</span>
                     <span className="text-sm text-muted-foreground">
-                      {serverInfo.name}
+                      Local server
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Address</span>
                     <code className="text-sm font-mono bg-muted px-2 py-1 rounded">
-                      {serverInfo.address}
+                      {serverInfo.ipAddress}
                     </code>
                   </div>
 
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Status</span>
                     <Badge
-                      variant={
-                        serverInfo.status === "Running"
-                          ? "default"
-                          : "secondary"
-                      }
+                      variant={serverInfo.isRunning ? "default" : "secondary"}
                       className={
-                        serverInfo.status === "Running"
+                        serverInfo.isRunning
                           ? "bg-success text-success-foreground"
                           : ""
                       }
                     >
-                      {serverInfo.status}
+                      {serverInfo.isRunning ? "Running" : "Not running"}
                     </Badge>
                   </div>
 
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Uptime</span>
                     <span className="text-sm text-muted-foreground">
-                      {serverInfo.uptime}
+                      {uptimeStr}
                     </span>
                   </div>
                 </div>
@@ -331,36 +247,36 @@ function FrontendApp() {
             </Card>
           )}
 
-          {connectionState === "connected" &&
-            serverInfo.status === "Running" && (
-              <Card className="border-destructive/20">
-                <CardHeader className="text-center pb-4">
-                  <CardTitle className="text-destructive flex items-center justify-center gap-2">
-                    <Power className="h-5 w-5" />
-                    Server Control
-                  </CardTitle>
-                  <CardDescription>
-                    Safely shutdown the remote server
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    onClick={handleShutdown}
-                    variant="destructive"
-                    className="w-full"
-                    size="lg"
-                    disabled={serverInfo.status === "Shutting down..."}
-                  >
-                    <Power className="h-4 w-4 mr-2" />
-                    {serverInfo.status === "Shutting down..."
-                      ? "Shutting Down..."
-                      : "Shutdown Server"}
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
+          {connectionState === "connected" && serverInfo.isRunning && (
+            <Card className="border-destructive/20">
+              <CardHeader className="text-center pb-4">
+                <CardTitle className="text-destructive flex items-center justify-center gap-2">
+                  <Power className="h-5 w-5" />
+                  Server Control
+                </CardTitle>
+                <CardDescription>
+                  Safely shutdown the remote server
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  onClick={handleShutdown}
+                  variant="destructive"
+                  className="w-full"
+                  size="lg"
+                  disabled={!serverInfo.isRunning}
+                >
+                  <Power className="h-4 w-4 mr-2" />
+                  {!serverInfo.isRunning
+                    ? "Shutting Down..."
+                    : "Shutdown Server"}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
+      <Toaster />
     </div>
   );
 }

@@ -29,6 +29,9 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import { useFormatTimeSince } from "@/hooks/useFormatTimeSince";
+import QRCode from "react-qr-code";
+import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 
 function App() {
   const [serverIP, setServerIP] = useState<string>(null);
@@ -87,6 +90,7 @@ function App() {
     await navigator.clipboard.writeText(serverAddress);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+    toast.success("Text copied to clipboard! You can now paste it anywhere.");
   };
 
   const getLogIcon = (type: string) => {
@@ -282,6 +286,15 @@ function App() {
                   </>
                 )}
               </Button>
+              {!isFetchingServerInfo && isServerRunning && (
+                <div className="flex items-center justify-center pt-4">
+                  <QRCode
+                    title="Scan QR code to open web interface"
+                    value={`http://${serverAddress}`}
+                    className="size-28"
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -324,6 +337,7 @@ function App() {
           </Card>
         </div>
       </div>
+      <Toaster />
     </div>
   );
 }

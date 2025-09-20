@@ -63,12 +63,24 @@ const proxy =
   });
 
 const startServer = async () => {
-  server = http.createServer((req, res) => {
+  server = http.createServer(async (req, res) => {
     if (req.method === "POST" && req.url === "/api/shutdown") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ status: "ok", shuttingDown: true }));
 
       return systemShutdown();
+    }
+
+    if (req.url === "/api/info") {
+      const infoObj = {
+        ipAddress: (await getIpAddress()) ?? "192.168.0.100",
+        port: PORT,
+        connections: 1,
+        startedAt: getServerStartedAt(),
+        isRunning: getServer() !== null,
+      };
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ status: "ok", data: infoObj }));
     }
 
     if (isDev) {
