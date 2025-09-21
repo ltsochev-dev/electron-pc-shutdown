@@ -179,7 +179,7 @@ function App() {
                   <Power className="size-6" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Shut down the server</TooltipContent>
+              <TooltipContent>Shut down the app</TooltipContent>
             </Tooltip>
           </div>
         </div>

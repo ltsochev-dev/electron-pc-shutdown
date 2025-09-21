@@ -7,9 +7,59 @@ import { systemShutdown } from "./lib/electron";
 import { app } from "electron";
 import mime from "mime";
 import { exec } from "node:child_process";
+import { Server } from "node-ssdp";
 
 let server: http.Server | null = null;
+let ssdpServer: Server | null = null;
 let startedAt = 0;
+
+const startSsdpServer = async (): Promise<void> => {
+  if (ssdpServer) return;
+
+  const ipAddr = await getIpAddress();
+  const serverAddr = `http://${ipAddr}:${PORT}`;
+
+  ssdpServer = new Server({
+    location: `${serverAddr}/description.xml`,
+    udn: "uuid:remote-control-app",
+  });
+
+  ssdpServer.addUSN("urn:schemas-upnp-org:service:RemotePcApp:1");
+
+  // Log when a discovery request is received
+  ssdpServer.on("advertise-alive", (headers) => {
+    console.log("Device/service is alive:", headers);
+  });
+
+  ssdpServer.on("advertise-bye", (headers) => {
+    console.log("Device/service going offline:", headers);
+  });
+
+  const res = ssdpServer.start();
+  if (typeof res === "object" && "then" in res && "catch" in res) {
+    return res
+      .then(() => {
+        console.log("SSDP server started broadcasting.");
+      })
+      .catch((err) => {
+        console.log("failed to start SSDP server");
+        console.error(err);
+        throw err;
+      });
+  }
+
+  return res;
+};
+
+const stopSsdpServer = () => {
+  if (!ssdpServer) return;
+
+  ssdpServer.stop();
+
+  ssdpServer = null;
+
+  console.log("Service broadcasting stopped.");
+};
 
 export const getIpAddress = async (): Promise<string> => {
   if (process.platform === "win32") {
@@ -83,6 +133,12 @@ const startServer = async () => {
       return res.end(JSON.stringify({ status: "ok", data: infoObj }));
     }
 
+    if (req.url === "/description.xml") {
+      const xmlResponse = await generateSsdpDescription();
+      res.writeHead(200, { "content-type": "text/xml" });
+      return res.end(xmlResponse);
+    }
+
     if (isDev) {
       proxy.web(req, res, undefined, (err) => {
         console.error("Proxy error:", err);
@@ -108,6 +164,8 @@ const startServer = async () => {
     startedAt = Date.now();
     console.log(`SPA Server running on http://${hostname}:${PORT}`);
     console.log(`Serving from: ${isDev ? WEB_VITE_DEV_SERVER_URL : staticDir}`);
+
+    startSsdpServer();
   });
 
   return true;
@@ -115,6 +173,8 @@ const startServer = async () => {
 
 const stopServer = async () => {
   if (!server) return false;
+
+  stopSsdpServer();
 
   server.closeAllConnections();
 
@@ -129,3 +189,35 @@ const getServer = () => server;
 const getServerStartedAt = () => startedAt;
 
 export { startServer, stopServer, getServer, getServerStartedAt };
+
+const generateSsdpDescription = async (): Promise<string> => {
+  const ipAddr = await getIpAddress();
+  const serverAddr = `http://${ipAddr}:${PORT}`;
+  return `<?xml version="1.0"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion>
+    <major>1</major>
+    <minor>0</minor>
+  </specVersion>
+
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:RemotePcApp:1</deviceType>
+    <friendlyName>Remote PC Control</friendlyName>
+    <manufacturer>LTsochev IT</manufacturer>
+    <modelName>RemotePC</modelName>
+    <UDN>uuid:remote-control-app</UDN>
+    
+    <!-- Optional: define a service -->
+    <serviceList>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:RemotePcApp:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:ShutdownService</serviceId>
+        <controlURL>/</controlURL>
+        <eventSubURL>/events</eventSubURL>
+      </service>
+    </serviceList>
+    <presentationURL>${serverAddr}</presentationURL>
+  </device>
+</root>
+`;
+};
